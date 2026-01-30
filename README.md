@@ -45,6 +45,16 @@ uv run python flatland_ppo_training_torchrl.py \
   --total-timesteps 100000
 ```
 
+## TensorBoard
+
+Training runs log to `runs/` by default. Start TensorBoard with:
+
+```shell
+uv run tensorboard --logdir runs
+```
+
+Then open http://localhost:6006 in your browser.
+
 ## Reward Structures
 
 In order to try different rewards and reproduce the curriculum learning used in the original paper, rewards are calculated as a linear combination of different components, the weight of each determined by a coefficient. Furthermore, rewards are determined in a curriculum-json file. For examples, see the /curriculums folder. 
