@@ -3,7 +3,7 @@ name = "flatland-marl--ppo"
 version = "0.1.0"
 description = "An implementation of PPO to train a TreeLSTM network for flatland"
 readme = "README.md"
-requires-python = ">=3.10,<=3.11"
+requires-python = ">=3.10,< 3.12"
 authors = [{ name = "Emanuel Zwyssig" }]
 
 dependencies = [
