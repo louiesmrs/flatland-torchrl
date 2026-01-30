@@ -15,6 +15,8 @@ The C-Utils observation generator and the LSTM network implementation stems from
 # Installation (uv)
 
 ```shell
+git submodule update --init --recursive
+
 uv venv .venv
 source .venv/bin/activate
 uv sync --reinstall
@@ -22,6 +24,8 @@ uv sync --reinstall
 # Build C-utils
 uv pip install ./flatland_cutils
 ```
+
+
 
 > Note: On macOS, `flatland_cutils` requires Apple clang. The repo’s `flatland_cutils/setup.py` is configured to use it automatically.
 
@@ -89,6 +93,26 @@ Example (uv):
 uv run python torchrl_rollout_demo.py \
   --pretrained-network-path trained_model_checkpoints/flatland-rl__ten_agents_lstm_l2_paper_reward__2__1706822019_25008000.tar
 ```
+
+# Hyperparameter tuning (CARBS)
+
+We use [CARBS](https://github.com/imbue-ai/carbs) for tuning. The sweep wrapper runs training and reads the chosen TensorBoard scalar.
+
+```shell
+uv run python scripts/carbs_sweep.py \
+  --trials 10 \
+  --seed 1 \
+  --metric "stats/arrival_ratio" \
+  --curriculum-path "curriculums/jiang_phases_1_3_7_to_10_agents_30x30.json"
+```
+
+Or via run command:
+
+```shell
+bash run_commands/carbs_sweep_flatland.sh
+```
+
+Results are appended to `carbs_runs/results.jsonl`.
 
 # Notes
 

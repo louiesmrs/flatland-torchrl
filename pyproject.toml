@@ -1,7 +1,7 @@
 [project]
-name = "flatland-marl-cleanrl-ppo"
+name = "flatland-marl--ppo"
 version = "0.1.0"
-description = "An implementation of PPO to train a TreeLSTM network for flatland on the basis of CleanRL."
+description = "An implementation of PPO to train a TreeLSTM network for flatland"
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
 authors = [{ name = "Emanuel Zwyssig" }]
@@ -32,6 +32,7 @@ dependencies = [
   "flatland-rl==4.0.1",
   "torchrl==0.11.0",
   "benchmarl @ file:benchmarl_ext",
+  "carbs>=0.2.0",
   "numpy<2",
   "setuptools>=69.0.0,<70",
 ]

@@ -1,0 +1,50 @@
+name: CARBS sweep (Flatland)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  carbs-sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Init submodules
+        run: git submodule update --init --recursive
+
+      - name: Sync dependencies
+        run: uv sync --reinstall
+
+      - name: Build flatland_cutils
+        run: uv pip install ./flatland_cutils
+
+      - name: Run CARBS sweep
+        run: |
+          bash run_commands/carbs_sweep_flatland.sh | tee carbs_output.txt
+
+      - name: Upload CARBS results
+        uses: actions/upload-artifact@v4
+        with:
+          name: carbs_results
+          path: |
+            carbs_runs/results.jsonl
+            carbs_output.txt
+
+      - name: Write summary
+        run: |
+          echo "## CARBS Sweep Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Results file: carbs_runs/results.jsonl" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Last 5 results" >> $GITHUB_STEP_SUMMARY
+          tail -n 5 carbs_runs/results.jsonl >> $GITHUB_STEP_SUMMARY || true
