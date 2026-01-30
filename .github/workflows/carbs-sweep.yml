@@ -26,6 +26,9 @@ jobs:
       - name: Sync dependencies
         run: uv sync --reinstall
 
+      - name: Install dev tools
+        run: uv pip install -r tools/requirements.txt
+
       - name: Install BenchMARL
         run: uv pip install ./benchmarl_ext
 

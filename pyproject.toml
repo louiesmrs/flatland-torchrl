@@ -31,7 +31,6 @@ dependencies = [
   "torchsummary>=1.5.1,<2",
   "flatland-rl==4.0.1",
   "torchrl==0.11.0",
-  "carbs>=0.2.0",
   "numpy<2",
   "setuptools>=69.0.0,<70",
 ]

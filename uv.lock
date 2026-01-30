@@ -468,7 +468,7 @@ wheels = [
 ]
 
 [[package]]
-name = "flatland-marl-cleanrl-ppo"
+name = "flatland-marl-ppo"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
