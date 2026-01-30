@@ -320,7 +320,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # Start PPO loop
-    for curriculum in curriculums:
+    for curriculum_idx, curriculum in enumerate(curriculums):
         print(f"Current curriculum settings: {curriculum}")
         args.batch_size = int(
             args.num_envs * curriculum["num_steps"]
@@ -418,6 +418,19 @@ if __name__ == "__main__":
         )
 
         start_rollout = time.time()
+
+        if args.exp_name is not None:
+            boundary_name = (
+                f"{run_name}_curr{curriculum_idx + 1}_"
+                f"agents{curriculum['num_agents']}"
+            )
+            torch.save(
+                {
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optim.state_dict(),
+                },
+                f"model_checkpoints/{run_name}/{boundary_name}.tar",
+            )
 
         for i_batch, tensordict_data in enumerate(collector):  # start training loops
             if args.do_multisync and i_batch < 3:

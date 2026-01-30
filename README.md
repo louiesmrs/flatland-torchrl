@@ -14,14 +14,6 @@ The C-Utils observation generator and the LSTM network implementation stems from
 
 # Installation (uv)
 
-This repo now uses **uv** for environment and dependency management. From a fresh clone, run the bootstrap script:
-
-```shell
-./scripts/bootstrap.sh
-```
-
-If you prefer manual steps:
-
 ```shell
 uv venv .venv
 source .venv/bin/activate
