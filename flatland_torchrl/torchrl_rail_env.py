@@ -107,6 +107,11 @@ class TDRailEnv(RailEnv):
         tensordict_out["agents"]["observation"][
             "valid_actions"
         ]: TensorDict = torch.tensor(valid_actions, dtype=torch.bool)
+        tensordict_out["agents"]["action_mask"] = tensordict_out["agents"][
+            "observation"
+        ]["valid_actions"]
+        tensordict_out["terminated"] = torch.tensor(False)
+        tensordict_out["reward"] = torch.tensor(0.0, dtype=torch.float32)
 
         self.previous_deadlocked = self.motionCheck.svDeadlocked
         return tensordict_out
@@ -145,9 +150,14 @@ class TDRailEnv(RailEnv):
             [value for _, value in rewards.items()], dtype=torch.float32
         )
         return_td["done"]: torch.Tensor = torch.tensor(done["__all__"]).type(torch.bool)
+        return_td["terminated"]: torch.Tensor = return_td["done"].clone()
+        return_td["reward"]: torch.Tensor = return_td["agents"]["reward"].mean()
         return_td["agents"]["observation"][
             "valid_actions"
         ]: torch.Tensor = torch.tensor(valid_actions, dtype=torch.bool)
+        return_td["agents"]["action_mask"] = return_td["agents"]["observation"][
+            "valid_actions"
+        ]
         return return_td
 
     def update_step_rewards(self, i_agent: int) -> None:

@@ -31,6 +31,7 @@ dependencies = [
   "torchsummary>=1.5.1,<2",
   "flatland-rl==4.0.1",
   "torchrl==0.11.0",
+  "benchmarl @ file:benchmarl_ext",
   "numpy<2",
   "setuptools>=69.0.0,<70",
 ]

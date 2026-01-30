@@ -1,0 +1,3 @@
+[submodule "benchmarl_ext"]
+	path = benchmarl_ext
+	url = https://github.com/louiesmrs/BenchMARL.git
