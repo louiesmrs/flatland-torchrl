@@ -21,6 +21,9 @@ uv venv .venv
 source .venv/bin/activate
 uv sync --reinstall
 
+# Install BenchMARL submodule
+uv pip install ./benchmarl_ext
+
 # Build C-utils
 uv pip install ./flatland_cutils
 ```

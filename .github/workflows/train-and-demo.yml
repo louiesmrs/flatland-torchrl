@@ -26,6 +26,9 @@ jobs:
       - name: Sync dependencies
         run: uv sync --reinstall
 
+      - name: Install BenchMARL
+        run: uv pip install ./benchmarl_ext
+
       - name: Build flatland_cutils
         run: uv pip install ./flatland_cutils
 
