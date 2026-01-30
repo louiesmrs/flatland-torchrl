@@ -1,4 +1,4 @@
-name: Train and demo (Jiang Phase III-50)
+name: Train and demo (Jiang Phase I-III, CI 2->5 agents)
 
 on:
   workflow_dispatch: {}
@@ -26,21 +26,21 @@ jobs:
       - name: Build flatland_cutils
         run: uv pip install ./flatland_cutils
 
-      - name: Train (Jiang Phases I -> III-50)
+      - name: Train (Jiang Phases I-III, CI 2->5 agents)
         run: |
-          bash run_commands/jiang_multi_phase_runs.sh | tee training_output.txt
+          bash run_commands/jiang_phase_1_3_ci.sh | tee training_output.txt
 
-      - name: Find Phase III-50 checkpoint
+      - name: Find Phase III checkpoint
         id: find_checkpoint
         run: |
-          CKPT=$(ls -t model_checkpoints/flatland-rl__jiang_phase_III_50__2__*/flatland-rl__jiang_phase_III_50__2__*.tar | head -n 1)
+          CKPT=$(ls -t model_checkpoints/flatland-rl__jiang_phase_1_3_ci_2_to_5_agents__1__*/flatland-rl__jiang_phase_1_3_ci_2_to_5_agents__1__*.tar | head -n 1)
           echo "checkpoint=${CKPT}" >> $GITHUB_OUTPUT
 
-      - name: Demo (50 agents)
+      - name: Demo (5 agents)
         run: |
           uv run python torchrl_rollout_demo.py \
             --pretrained-network-path "${{ steps.find_checkpoint.outputs.checkpoint }}" \
-            --num-agents 50 | tee demo_output.txt
+            --num-agents 5 | tee demo_output.txt
 
       - name: Collect training metrics
         run: |
@@ -49,13 +49,13 @@ jobs:
       - name: Upload checkpoint artifact
         uses: actions/upload-artifact@v4
         with:
-          name: jiang_phase_III_50_checkpoint
+          name: jiang_phase_1_3_checkpoint
           path: ${{ steps.find_checkpoint.outputs.checkpoint }}
 
-      - name: Find TensorBoard run (Phase III-50)
+      - name: Find TensorBoard run (Phase III)
         id: find_run
         run: |
-          RUN_DIR=$(ls -d runs/flatland-rl__jiang_phase_III_50__2__* | sort | tail -n 1)
+          RUN_DIR=$(ls -d runs/flatland-rl__jiang_phase_1_3_ci_2_to_5_agents__1__* | sort | tail -n 1)
           echo "run_dir=${RUN_DIR}" >> $GITHUB_OUTPUT
 
       - name: Upload TensorBoard logs
@@ -77,6 +77,7 @@ jobs:
         run: |
           echo "## Training + Demo Summary" >> $GITHUB_STEP_SUMMARY
           echo "- Checkpoint: ${{ steps.find_checkpoint.outputs.checkpoint }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Curriculum: curriculums/jiang_phases_1_3_ci_2_to_5_agents_30x30.json" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Demo output (arrival/deadlock)" >> $GITHUB_STEP_SUMMARY
           grep -E "arrival ratio:|deadlock ratio:" demo_output.txt >> $GITHUB_STEP_SUMMARY || true
