@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from impl_config import FeatureParserConfig as fp
 from impl_config import NetworkConfig as ns
-from tensordict.tensordict import TensorDict
+from tensordict import TensorDict
 from torch.distributions.categorical import Categorical
 import tensordict
 from .TreeLSTM import TreeLSTM

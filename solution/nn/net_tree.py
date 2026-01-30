@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from impl_config import FeatureParserConfig as fp
 from impl_config import NetworkConfig as ns
-from tensordict.tensordict import TensorDict
+from tensordict import TensorDict
 from torch.distributions.categorical import Categorical
 
 from .TreeLSTM import TreeLSTM
@@ -239,7 +239,7 @@ class Network_td(nn.Module):
         # print('log probs actions squeeze shape: {}'.format(probs.log_prob(actions.squeeze(-1)).unsqueeze(-1).shape))
         # print("log probs in net before return: {}".format(probs.log_prob(actions.squeeze(-1)).unsqueeze(-1)))
         # return actions, probs.log_prob(actions.squeeze(-1)).unsqueeze(-1), entropy, values, probs.probs, tree_embedding
-        assert (not torch.isnan(probs.log_prob(actions)).any(), "NA in action logits")
+        assert not torch.isnan(probs.log_prob(actions)).any(), "NA in action logits"
         return logits
         # return self.actor(embedding, att_embedding), self.critic(embedding, att_embedding)
 

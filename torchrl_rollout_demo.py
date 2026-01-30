@@ -18,32 +18,30 @@ from flatland.envs.malfunction_generators import (
     ParamMalfunctionGen,
 )
 from flatland.envs.rail_env import RailEnv
-from flatland.envs.rail_generators import (
-    SparseRailGen,
-    rail_from_grid_transition_map,
-)
+from flatland.envs.rail_generators import SparseRailGen, rail_from_grid_transition_map
 from flatland.envs.step_utils.states import TrainState
 from flatland.envs.timetable_utils import Line
 from flatland.utils.rendertools import AgentRenderVariant, RenderTool
 from IPython.display import clear_output
 from matplotlib import pyplot as plt
 from numpy.random.mtrand import RandomState
+from tensordict import TensorDict
 from tensordict.nn import (
     InteractionType,
     ProbabilisticTensorDictSequential,
     TensorDictModule,
 )
-from tensordict.tensordict import TensorDict
 from torch import nn, optim
 from torch.nn import MSELoss, SmoothL1Loss
 from torch.utils.tensorboard import SummaryWriter
-from torchrl.collectors import SyncDataCollector
-from torchrl.data import (
-    CompositeSpec,
-    DiscreteTensorSpec,
-    UnboundedContinuousTensorSpec,
-    UnboundedDiscreteTensorSpec,
-)
+from torchrl.collectors import Collector
+
+# from torchrl.data import (
+#    CompositeSpec,
+#    DiscreteTensorSpec,
+#    UnboundedContinuousTensorSpec,
+#    UnboundedDiscreteTensorSpec,
+# )
 from torchrl.data.replay_buffers import ReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.replay_buffers.storages import LazyTensorStorage
@@ -71,7 +69,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 from tqdm import tqdm
 
-from flatland_torchrl.torchrl_rail_env import TorchRLRailEnv, TDRailEnv
+from flatland_torchrl.torchrl_rail_env import TDRailEnv, TorchRLRailEnv
 
 
 def parse_args():
@@ -197,6 +195,11 @@ if __name__ == "__main__":
     env = ParallelEnv(1, make_env)
 
     print("set up envs")
+    if args.pretrained_network_path is None:
+        raise ValueError(
+            "Please provide --pretrained-network-path pointing to a .tar or .pt checkpoint."
+        )
+
     if args.pretrained_network_path.endswith(".tar"):
         embedding_net = embedding_net()
         common_module = TensorDictModule(
@@ -243,10 +246,18 @@ if __name__ == "__main__":
         )
         from torchrl.modules import ActorValueOperator, ValueOperator
 
-        model = ActorValueOperator(common_module, policy, critic_module).to("cuda")
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
+
+        print(f"device used: {device}")
+        model = ActorValueOperator(common_module, policy, critic_module).to(device)
         model_path = args.pretrained_network_path
         assert model_path.endswith("tar"), "Network format not known."
-        checkpoint = torch.load(model_path)
+        checkpoint = torch.load(model_path, map_location=torch.device(device))
         print(f'type of state dict: {type(checkpoint["model_state_dict"])}')
         # print([key for key, _ in checkpoint['model_state_dict']])
         model.load_state_dict(checkpoint["model_state_dict"])
@@ -281,18 +292,20 @@ if __name__ == "__main__":
             default_interaction_type=InteractionType.RANDOM,
         )
 
-    collector = SyncDataCollector(
+    collector = Collector(
         env,
-        model,
-        device="cpu",
-        storing_device="cpu",
+        policy=model,
         frames_per_batch=args.rollout_steps,
         total_frames=args.rollout_steps,
+        device="cpu",
+        storing_device="cpu",
     )
     start_time = time.time()
     start_rollout = time.time()
 
     results_td = collector.rollout()
+
+    collector.shutdown()
 
     if args.do_render:
         os.system(

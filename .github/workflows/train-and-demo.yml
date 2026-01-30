@@ -1,0 +1,79 @@
+name: Train and demo (Jiang Phase III-50)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  train-and-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Sync dependencies
+        run: uv sync --reinstall
+
+      - name: Build flatland_cutils
+        run: uv pip install ./flatland_cutils
+
+      - name: Train (Jiang Phases I -> III-50)
+        run: |
+          bash run_commands/jiang_multi_phase_runs.sh | tee training_output.txt
+
+      - name: Find Phase III-50 checkpoint
+        id: find_checkpoint
+        run: |
+          CKPT=$(ls -t model_checkpoints/flatland-rl__jiang_phase_III_50__2__*/flatland-rl__jiang_phase_III_50__2__*.tar | head -n 1)
+          echo "checkpoint=${CKPT}" >> $GITHUB_OUTPUT
+
+      - name: Demo (50 agents)
+        run: |
+          uv run python torchrl_rollout_demo.py \
+            --pretrained-network-path "${{ steps.find_checkpoint.outputs.checkpoint }}" \
+            --num-agents 50 | tee demo_output.txt
+
+      - name: Collect training metrics
+        run: |
+          rg -n "SPS:" training_output.txt | tee training_metrics.txt || true
+
+      - name: Upload checkpoint artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jiang_phase_III_50_checkpoint
+          path: ${{ steps.find_checkpoint.outputs.checkpoint }}
+
+      - name: Upload TensorBoard logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensorboard_runs
+          path: runs/
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: training_and_demo_logs
+          path: |
+            demo_output.txt
+            training_output.txt
+            training_metrics.txt
+
+      - name: Write summary
+        run: |
+          echo "## Training + Demo Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Checkpoint: ${{ steps.find_checkpoint.outputs.checkpoint }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Demo output (arrival/deadlock)" >> $GITHUB_STEP_SUMMARY
+          grep -E "arrival ratio:|deadlock ratio:" demo_output.txt >> $GITHUB_STEP_SUMMARY || true
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Training SPS (if logged)" >> $GITHUB_STEP_SUMMARY
+          rg -n "SPS:" training_output.txt >> $GITHUB_STEP_SUMMARY || true

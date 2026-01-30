@@ -7,39 +7,31 @@ import time
 import numpy as np
 import torch
 from flatland.envs.line_generators import SparseLineGen
-from flatland.envs.rail_generators import SparseRailGen
-from flatland.envs.rail_generators import rail_from_grid_transition_map
-
 from flatland.envs.malfunction_generators import (
     MalfunctionParameters,
     ParamMalfunctionGen,
 )
+from flatland.envs.rail_generators import SparseRailGen, rail_from_grid_transition_map
 from tensordict.nn import (
     InteractionType,
     ProbabilisticTensorDictSequential,
     TensorDictModule,
 )
-
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
-from torchrl.collectors import (
-    SyncDataCollector,
-    MultiSyncDataCollector,
-    MultiaSyncDataCollector,
-)
+from torchrl.collectors import Collector, MultiCollector
+from torchrl.data import TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.replay_buffers.storages import LazyTensorStorage
 from torchrl.envs import ParallelEnv
-from torchrl.modules import ProbabilisticActor
+from torchrl.modules import ActorValueOperator, ProbabilisticActor, ValueOperator
 from torchrl.objectives import ClipPPOLoss
-from torchrl.modules import ActorValueOperator, ValueOperator
-from torchrl.data import TensorDictReplayBuffer
 
 from flatland_cutils import TreeObsForRailEnv as TreeCutils
+from flatland_torchrl.custom_map_generator import generate_custom_rail
+from flatland_torchrl.torchrl_rail_env import TDRailEnv, TorchRLRailEnv
 from solution.nn.net_tree_torchrl import actor_net, critic_net, embedding_net
 from solution.nn.net_tree_transformer import transformer_embedding_net
-from flatland_torchrl.torchrl_rail_env import TorchRLRailEnv, TDRailEnv
-from flatland_torchrl.custom_map_generator import generate_custom_rail
 
 
 def parse_args():
@@ -173,7 +165,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
-    os.mkdir(f"model_checkpoints/{run_name}")
+    os.makedirs(f"model_checkpoints/{run_name}", exist_ok=True)
 
     if args.exp_name is not None:
         print("initializing tracking")
@@ -190,7 +182,14 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = args.use_torch_deterministic
     print(f"using deterministic: {args.use_torch_deterministic}")
 
-    device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
+    #   os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+    elif torch.cuda.is_available() and args.cuda:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
     print(f"device used: {device}")
 
     # Set-up of the neural network
@@ -249,9 +248,10 @@ if __name__ == "__main__":
     loss_module = ClipPPOLoss(
         actor=ProbabilisticTensorDictSequential(common_module, policy),
         critic=critic_module,
-        critic_coef=args.vf_coef,
+        critic_coeff=args.vf_coef,
         clip_epsilon=args.clip_coef,
-        entropy_coef=args.ent_coef,
+        entropy_coeff=args.ent_coef,
+        normalize_advantage_exclude_dims=[-2],
         normalize_advantage=args.norm_adv,
         loss_critic_type=args.value_loss,
     )
@@ -388,27 +388,27 @@ if __name__ == "__main__":
             def make_serial_env():
                 return ParallelEnv(args.num_envs, make_env)
 
-            collector = MultiaSyncDataCollector(
-                [make_serial_env, make_serial_env, make_serial_env],
-                model,
-                device=["cpu", "cpu", "cpu"],  # env runs on cpu
-                storing_device=[device, device, device],
+            collector = MultiCollector(
+                create_env_fn=[make_serial_env, make_serial_env, make_serial_env],
+                policy=model,
                 frames_per_batch=args.batch_size,
                 total_frames=curriculum["total_timesteps"],
-                update_at_each_batch=True,
+                device=["cpu", "cpu", "cpu"],  # env runs on cpu
+                storing_device=[device, device, device],
+                sync=False,
                 max_frames_per_traj=-1,
                 init_random_frames=args.batch_size,
             )
         else:
             env = ParallelEnv(args.num_envs, make_env)
 
-            collector = SyncDataCollector(
+            collector = Collector(
                 env,
-                model,
-                device="cpu",  # env runs on cpu
-                storing_device=device,
+                policy=model,
                 frames_per_batch=args.batch_size,
                 total_frames=curriculum["total_timesteps"],
+                device="cpu",  # env runs on cpu
+                storing_device=device,
             )
 
         replay_buffer = TensorDictReplayBuffer(
@@ -418,8 +418,6 @@ if __name__ == "__main__":
         )
 
         start_rollout = time.time()
-
-        collector.update_policy_weights_()
 
         for i_batch, tensordict_data in enumerate(collector):  # start training loops
             if args.do_multisync and i_batch < 3:
@@ -659,8 +657,6 @@ if __name__ == "__main__":
                     optim.zero_grad()
 
             training_duration = time.time() - training_start
-
-            collector.update_policy_weights_()
 
             if args.exp_name is not None:
                 loss_vals = loss_module(subdata)

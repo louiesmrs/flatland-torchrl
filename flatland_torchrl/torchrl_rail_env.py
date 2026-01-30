@@ -4,12 +4,12 @@ import torch
 from flatland.envs.agent_utils import EnvAgent
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.step_utils.states import TrainState
-from tensordict.tensordict import TensorDict
-from torchrl.data import (
-    CompositeSpec,
-    DiscreteTensorSpec,
-    UnboundedContinuousTensorSpec,
-    UnboundedDiscreteTensorSpec,
+from tensordict import TensorDict
+from torchrl.data.tensor_specs import (
+    Categorical,
+    Composite,
+    UnboundedContinuous,
+    UnboundedDiscrete,
 )
 from torchrl.envs.common import EnvBase
 
@@ -282,26 +282,26 @@ class TorchRLRailEnv(EnvBase):
 
     def _make_spec(self) -> None:
         """Generate specifications for flatland C-utils observation builder"""
-        self.observation_spec = CompositeSpec(
-            agents=CompositeSpec(
-                observation=CompositeSpec(
-                    agents_attr=UnboundedContinuousTensorSpec(
+        self.observation_spec = Composite(
+            agents=Composite(
+                observation=Composite(
+                    agents_attr=UnboundedContinuous(
                         shape=[self.num_agents, 83], dtype=torch.float32
                     ),
-                    adjacency=UnboundedDiscreteTensorSpec(
+                    adjacency=UnboundedDiscrete(
                         shape=[self.num_agents, 30, 3], dtype=torch.int64
                     ),
-                    node_attr=UnboundedDiscreteTensorSpec(
+                    node_attr=UnboundedDiscrete(
                         shape=[self.num_agents, 31, 12], dtype=torch.float32
                     ),
-                    node_order=UnboundedDiscreteTensorSpec(
+                    node_order=UnboundedDiscrete(
                         shape=[self.num_agents, 31], dtype=torch.int64
                     ),
-                    edge_order=UnboundedDiscreteTensorSpec(
+                    edge_order=UnboundedDiscrete(
                         shape=[self.num_agents, 30], dtype=torch.int64
                     ),
-                    valid_actions=DiscreteTensorSpec(
-                        n=2, dtype=torch.bool, shape=[self.num_agents, 5]
+                    valid_actions=Categorical(
+                        n=2, shape=[self.num_agents, 5], dtype=torch.bool
                     ),
                     shape=[self.num_agents],
                 ),
@@ -309,9 +309,9 @@ class TorchRLRailEnv(EnvBase):
             ),
             shape=[],
         )
-        self.action_spec = CompositeSpec(
-            agents=CompositeSpec(
-                action=DiscreteTensorSpec(
+        self.action_spec = Composite(
+            agents=Composite(
+                action=Categorical(
                     n=5, shape=[self.num_agents], dtype=torch.int64
                 ),
                 shape=[],
@@ -319,9 +319,9 @@ class TorchRLRailEnv(EnvBase):
             shape=[],
         )
 
-        self.reward_spec = CompositeSpec(
-            agents=CompositeSpec(
-                reward=UnboundedContinuousTensorSpec(
+        self.reward_spec = Composite(
+            agents=Composite(
+                reward=UnboundedContinuous(
                     shape=[self.num_agents], dtype=torch.float32
                 ),
                 shape=[],
@@ -329,7 +329,7 @@ class TorchRLRailEnv(EnvBase):
             shape=[],
         )
 
-        self.done_spec = DiscreteTensorSpec(n=2, dtype=torch.bool, shape=[1])
+        self.done_spec = Categorical(n=2, dtype=torch.bool, shape=[1])
 
     def _reset(self, tensordict: TensorDict = None) -> TensorDict:
         return self.env.reset()

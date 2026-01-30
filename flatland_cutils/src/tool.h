@@ -1,7 +1,27 @@
-#include <bits/stdc++.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+
+#include <algorithm>
+#include <array>
+#include <bitset>
+#include <cassert>
+#include <chrono>
+#include <cmath>
+#include <ctime>
+#include <exception>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <map>
+#include <mutex>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <tuple>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include <algorithm>
 #include <array>
@@ -347,8 +367,10 @@ inline Cell_Transitions get_transitions(Position agent_position,
     int cell_transition = rail.at(agent_position.first, agent_position.second);
     Grid4Transitions orientation = Grid4Transitions(agent_direction);
     int bits = (cell_transition >> ((3 - orientation.value) * 4));
-    return (Cell_Transitions){(bits >> 3) & 1, (bits >> 2) & 1, (bits >> 1) & 1,
-                              (bits)&1};
+    return (Cell_Transitions){static_cast<bool>((bits >> 3) & 1),
+                              static_cast<bool>((bits >> 2) & 1),
+                              static_cast<bool>((bits >> 1) & 1),
+                              static_cast<bool>((bits)&1)};
 };
 
 inline Position get_new_position(Position pos, int movement) {

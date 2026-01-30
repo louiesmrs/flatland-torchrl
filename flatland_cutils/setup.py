@@ -1,9 +1,20 @@
+import platform
 import sys
 from glob import glob
 
 # Available at setup time due to pyproject.toml
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 from setuptools import setup
+
+if sys.platform == "darwin":
+    # Prefer Apple clang + system libc++ to avoid ABI mismatches on macOS
+    import os
+
+    os.environ["CC"] = "/usr/bin/clang"
+    os.environ["CXX"] = "/usr/bin/clang++"
+    mac_ver = platform.mac_ver()[0]
+    if mac_ver:
+        os.environ["MACOSX_DEPLOYMENT_TARGET"] = ".".join(mac_ver.split(".")[:2])
 
 __version__ = "0.0.1"
 

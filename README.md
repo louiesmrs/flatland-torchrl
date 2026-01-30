@@ -12,29 +12,46 @@ Several people in SBB and the Flatland community gave valuable input to this pro
 
 The C-Utils observation generator and the LSTM network implementation stems from https://github.com/RoboEden/flatland-marl, which this is a fork of.
 
-# Installation
+# Installation (uv)
 
-The poetry set-up should take care of most things, including creating a new virtual environment (if you don't have poetry installed, see [here](https://python-poetry.org/docs/)). Installation needs to be done in WSL, as the c-utils cannot be installed otherwise. Clone the repository and initialize it by running
-
-```shell
-poetry install
-```
-
-If the flatland installation didn't work directly, do it manually by running
+This repo now uses **uv** for environment and dependency management. From a fresh clone, run the bootstrap script:
 
 ```shell
-poetry run pip install flatland-rl
+./scripts/bootstrap.sh
 ```
 
-The installation of the C-utils obersvation generator does not work via poetry, therefore you have to run it manually with
+If you prefer manual steps:
 
 ```shell
-poetry run pip install ./flatland_cutils
+uv venv .venv
+source .venv/bin/activate
+uv sync --reinstall
+
+# Build C-utils
+uv pip install ./flatland_cutils
 ```
+
+> Note: On macOS, `flatland_cutils` requires Apple clang. The repo’s `flatland_cutils/setup.py` is configured to use it automatically.
 
 # Training
 
-To train flatland, run flatland_ppo_training_torchrl.py. There are many ready-to-use run commands for different experiments in the /run_commands folder. There are many hyperparameters to chose from, most of which are standard for the algorithm used. Below are brief explanations of the most special cases.
+To train flatland, run `flatland_ppo_training_torchrl.py`. There are many ready-to-use run commands for different experiments in the `/run_commands` folder. There are many hyperparameters to choose from, most of which are standard for the algorithm used. Below are brief explanations of the most special cases.
+
+On macOS, the script will use **MPS** automatically if available and will fall back to CPU for unsupported ops. You can also set this explicitly before running:
+
+```shell
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+```
+
+Example (uv):
+
+```shell
+uv run python flatland_ppo_training_torchrl.py \
+  --exp-name demo \
+  --num-agents 10 \
+  --num-envs 8 \
+  --total-timesteps 100000
+```
 
 ## Reward Structures
 
@@ -62,7 +79,14 @@ The adaptions necessary for flatland to be used as a TorchRL environment are con
 
 # Model Comparisons
 
-To compare different models to the pre-trained model from the original paper, the script torchrl_rollout_demo.py allows using both model architectures for a rollout (including the possibility to render the rollouts). 
+To compare different models to the pre-trained model from the original paper, the script `torchrl_rollout_demo.py` allows using both model architectures for a rollout (including the possibility to render the rollouts).
+
+Example (uv):
+
+```shell
+uv run python torchrl_rollout_demo.py \
+  --pretrained-network-path trained_model_checkpoints/flatland-rl__ten_agents_lstm_l2_paper_reward__2__1706822019_25008000.tar
+```
 
 # Notes
 
