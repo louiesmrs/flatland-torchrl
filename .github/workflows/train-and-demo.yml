@@ -52,11 +52,17 @@ jobs:
           name: jiang_phase_III_50_checkpoint
           path: ${{ steps.find_checkpoint.outputs.checkpoint }}
 
+      - name: Find TensorBoard run (Phase III-50)
+        id: find_run
+        run: |
+          RUN_DIR=$(ls -d runs/flatland-rl__jiang_phase_III_50__2__* | sort | tail -n 1)
+          echo "run_dir=${RUN_DIR}" >> $GITHUB_OUTPUT
+
       - name: Upload TensorBoard logs
         uses: actions/upload-artifact@v4
         with:
-          name: tensorboard_runs
-          path: runs/
+          name: tensorboard_run
+          path: ${{ steps.find_run.outputs.run_dir }}
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
