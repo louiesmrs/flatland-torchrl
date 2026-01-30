@@ -28,7 +28,7 @@ jobs:
 
       - name: Train (Jiang Phases I-III, 7->10 agents)
         run: |
-          bash run_commands/jiang_phase_1_3_small_ci.sh | tee training_output.txt
+          bash run_commands/jiang_phase_1_3.sh | tee training_output.txt
 
       - name: Find Phase III checkpoint
         id: find_checkpoint
