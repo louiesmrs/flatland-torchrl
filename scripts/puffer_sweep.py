@@ -5,28 +5,29 @@ import subprocess
 import time
 from pathlib import Path
 
-import pufferlib
-import pufferlib.sweep as puffsweep
+from pufferlib.sweep import Protein
 from tensorboard.backend.event_processing import event_accumulator
 
 SWEEP_CFG = {
     "method": "Protein",
     "metric": "stats/arrival_ratio",
     "goal": "maximize",
-    "use_gpu": False,
+    "downsample": 1,
     # Hyperparams to sweep are declared as nested dicts in the pufferlib format
     "learning_rate": {
         "distribution": "log_normal",
         "min": 2.5e-6,
         "max": 2.5e-3,
+        "mean": 2.5e-5,
         "scale": "auto",
     },
-    "clip_coef": {"distribution": "uniform", "min": 0.05, "max": 0.3, "scale": "auto"},
-    "vf_coef": {"distribution": "log_normal", "min": 0.01, "max": 1.0, "scale": "auto"},
+    "clip_coef": {"distribution": "uniform", "min": 0.05, "max": 0.3, "mean": 0.1, "scale": "auto"},
+    "vf_coef": {"distribution": "log_normal", "min": 0.01, "max": 1.0, "mean": 0.1, "scale": "auto"},
     "ent_coef": {
         "distribution": "log_normal",
         "min": 1e-4,
         "max": 1e-2,
+        "mean": 1e-3,
         "scale": "auto",
     },
 }
@@ -89,11 +90,9 @@ def run_training_with_suggestion(suggestion_args):
 
 def main(trials=10, use_gpu=False):
     cfg = dict(SWEEP_CFG)
-    cfg["use_gpu"] = use_gpu
 
-    # Protein constructor in some pufferlib versions does not accept 'use_gpu' kwarg;
-    # pass device selection via sweep_config and avoid constructor kwarg for compatibility.
-    sweep = puffsweep.Protein(cfg, expansion_rate=1.0, prune_pareto=True)
+    # Directly construct the Protein sweep using the provided config
+    sweep = Protein(cfg, expansion_rate=1.0)
 
     Path("puffer_runs").mkdir(parents=True, exist_ok=True)
 
