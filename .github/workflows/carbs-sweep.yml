@@ -7,6 +7,8 @@ jobs:
   carbs-sweep:
     runs-on: ubuntu-latest
     environment: flatland
+    env:
+      WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
     timeout-minutes: 360
 
     steps:
@@ -28,8 +30,6 @@ jobs:
         run: uv sync --reinstall
 
       - name: Install dev tools
-        env:
-          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
         run: uv pip install -r tools/requirements.txt
 
       - name: Install BenchMARL
