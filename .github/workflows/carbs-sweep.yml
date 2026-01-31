@@ -38,22 +38,22 @@ jobs:
       - name: Build flatland_cutils
         run: uv pip install ./flatland_cutils
 
-      - name: Run CARBS sweep
+      - name: Run PufferLib sweep
         run: |
-          bash run_commands/carbs_sweep_flatland.sh | tee carbs_output.txt
+          bash -lc "uv run python scripts/puffer_sweep.py --trials 5" | tee puffer_output.txt
 
-      - name: Upload CARBS results
+      - name: Upload sweep results
         uses: actions/upload-artifact@v4
         with:
-          name: carbs_results
+          name: puffer_results
           path: |
-            carbs_runs/results.jsonl
-            carbs_output.txt
+            puffer_runs/results.jsonl
+            puffer_output.txt
 
       - name: Write summary
         run: |
-          echo "## CARBS Sweep Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Results file: carbs_runs/results.jsonl" >> $GITHUB_STEP_SUMMARY
+          echo "## Puffer Sweep Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Results file: puffer_runs/results.jsonl" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Last 5 results" >> $GITHUB_STEP_SUMMARY
-          tail -n 5 carbs_runs/results.jsonl >> $GITHUB_STEP_SUMMARY || true
+          tail -n 5 puffer_runs/results.jsonl >> $GITHUB_STEP_SUMMARY || true

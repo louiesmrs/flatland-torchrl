@@ -4,8 +4,18 @@ import subprocess
 import time
 from pathlib import Path
 
-from carbs import CARBS, CARBSParams, LogSpace, LinearSpace, Param, ObservationInParam
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib as mpl
+
+from carbs import CARBS, CARBSParams, LinearSpace, LogSpace, ObservationInParam, Param
 from tensorboard.backend.event_processing import event_accumulator
+
+from pathlib import Path
+# ensure output dirs exist for CARBS plots/results
+Path('carbs_runs').mkdir(parents=True, exist_ok=True)
+Path('carbs_plots').mkdir(parents=True, exist_ok=True)
+mpl.rcParams['savefig.directory'] = str(Path('carbs_plots').resolve())
 
 
 def run_training(params: dict) -> str:
@@ -79,7 +89,7 @@ def main() -> None:
         Param("ent-coef", LogSpace(min=1e-4, max=1e-2), search_center=1e-3),
     ]
     carbs = CARBS(
-        CARBSParams(better_direction_sign=1, resample_frequency=0),
+        CARBSParams(better_direction_sign=1, resample_frequency=0, is_wandb_logging_enabled=False),
         param_spaces,
     )
 
@@ -91,7 +101,7 @@ def main() -> None:
             "vf-coef": suggestion["vf-coef"],
             "ent-coef": suggestion["ent-coef"],
             "max-grad-norm": 0.2,
-            "num-envs": 8,
+            "num-envs": 10,
             "num-steps": 200,
             "seed": args.seed,
             "curriculum-path": args.curriculum_path,

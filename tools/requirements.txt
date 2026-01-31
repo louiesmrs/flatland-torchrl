@@ -1,8 +1,8 @@
 # Tools and dev-only dependencies (not part of the library runtime)
 # Install with: uv pip install -r tools/requirements.txt
-# Install CARBS from the GitHub repo to avoid transitive metadata issues on PyPI
-# (falls back to latest main commit)
-git+https://github.com/imbue-ai/carbs.git@main#egg=carbs
+
+# PufferLib for hyperparameter sweeps
+pufferlib
 
 # Logging/experiment tracking
 wandb
