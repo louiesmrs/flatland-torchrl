@@ -91,9 +91,9 @@ def main(trials=10, use_gpu=False):
     cfg = dict(SWEEP_CFG)
     cfg["use_gpu"] = use_gpu
 
-    sweep = puffsweep.Protein(
-        cfg, expansion_rate=1.0, use_gpu=use_gpu, prune_pareto=True
-    )
+    # Protein constructor in some pufferlib versions does not accept 'use_gpu' kwarg;
+    # pass device selection via sweep_config and avoid constructor kwarg for compatibility.
+    sweep = puffsweep.Protein(cfg, expansion_rate=1.0, prune_pareto=True)
 
     Path("puffer_runs").mkdir(parents=True, exist_ok=True)
 
