@@ -3,3 +3,6 @@
 # Install CARBS from the GitHub repo to avoid transitive metadata issues on PyPI
 # (falls back to latest main commit)
 git+https://github.com/imbue-ai/carbs.git@main#egg=carbs
+
+# Logging/experiment tracking
+wandb
