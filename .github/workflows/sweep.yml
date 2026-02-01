@@ -40,7 +40,7 @@ jobs:
 
       - name: Run PufferLib sweep
         run: |
-          bash -lc "uv run python scripts/puffer_sweep.py --trials 5" | tee puffer_output.txt
+          bash -lc "uv run python scripts/puffer_sweep.py" | tee puffer_output.txt
 
       - name: Upload sweep results
         uses: actions/upload-artifact@v4
