@@ -23,8 +23,20 @@ SWEEP_CFG = {
         "mean": 2.5e-5,
         "scale": "auto",
     },
-    "clip_coef": {"distribution": "uniform", "min": 0.05, "max": 0.3, "mean": 0.1, "scale": "auto"},
-    "vf_coef": {"distribution": "log_normal", "min": 0.01, "max": 1.0, "mean": 0.1, "scale": "auto"},
+    "clip_coef": {
+        "distribution": "uniform",
+        "min": 0.05,
+        "max": 0.3,
+        "mean": 0.1,
+        "scale": "auto",
+    },
+    "vf_coef": {
+        "distribution": "log_normal",
+        "min": 0.01,
+        "max": 1.0,
+        "mean": 0.1,
+        "scale": "auto",
+    },
     "ent_coef": {
         "distribution": "log_normal",
         "min": 1e-4,
@@ -40,7 +52,7 @@ BASE_ARGS = {
     "train": {
         "num_envs": 10,
         "num_steps": 200,
-        "total_timesteps": 50000,
+        "total_timesteps": 100000,
     },
     "data_path": "sweep",
 }
@@ -58,7 +70,7 @@ def run_training_with_suggestion(suggestion_args, use_gpu=False):
         "--exp-name",
         exp_name,
         "--num-envs",
-        str(int(train.get("num_envs", 8))),
+        str(int(train.get("num_envs", 10))),
         "--num-steps",
         str(int(train.get("num_steps", 200))),
         "--seed",
