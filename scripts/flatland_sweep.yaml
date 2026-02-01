@@ -1,4 +1,4 @@
-max_runs: 60
+max_runs: 45
 
 sweep:
   method: Protein
