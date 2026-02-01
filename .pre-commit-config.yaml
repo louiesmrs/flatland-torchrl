@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (local)
+        entry: ruff check .
+        language: system
+        files: "\.py$"
+        stages: [commit]
