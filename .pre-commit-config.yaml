@@ -5,5 +5,5 @@ repos:
         name: ruff (local)
         entry: ruff check .
         language: system
-        files: "\.py$"
+        files: '\\.py$'
         stages: [commit]
