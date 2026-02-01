@@ -1,0 +1,48 @@
+wandb: true
+wandb_project: flatland
+wandb_group: flatland-sweep
+max_runs: 20
+no_model_upload: true
+
+sweep:
+  method: Protein
+  metric: stats/arrival_ratio
+  metric_distribution: raw
+  goal: maximize
+  downsample: 1
+  early_stop_quantile: 0.3
+  learning_rate:
+    distribution: log_normal
+    min: 2.5e-6
+    max: 2.5e-3
+    mean: 2.5e-5
+    scale: auto
+  clip_coef:
+    distribution: uniform
+    min: 0.05
+    max: 0.3
+    mean: 0.1
+    scale: auto
+  vf_coef:
+    distribution: log_normal
+    min: 0.01
+    max: 1.0
+    mean: 0.1
+    scale: auto
+  ent_coef:
+    distribution: log_normal
+    min: 1e-4
+    max: 1e-2
+    mean: 1e-3
+    scale: auto
+
+sweep_extra:
+  expansion_rate: 1.0
+  use_gpu: false
+
+train:
+  num_envs: 10
+  num_steps: 200
+  total_timesteps: 1000000
+
+curriculum_path: curriculums/jiang_sweep_2_agents_30x30.json

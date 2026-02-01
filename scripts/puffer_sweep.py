@@ -1,66 +1,24 @@
 #!/usr/bin/env python3
 import argparse
-import json
+import copy
+import pickle
+import random
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+import torch
+import yaml
 from pufferlib.sweep import Protein
 from tensorboard.backend.event_processing import event_accumulator
 
-SWEEP_CFG = {
-    "method": "Protein",
-    "metric": "stats/arrival_ratio",
-    "metric_distribution": "raw",
-    "goal": "maximize",
-    "downsample": 1,
-    "early_stop_quantile": 0.3,
-    # Hyperparams to sweep are declared as nested dicts in the pufferlib format
-    "learning_rate": {
-        "distribution": "log_normal",
-        "min": 2.5e-6,
-        "max": 2.5e-3,
-        "mean": 2.5e-5,
-        "scale": "auto",
-    },
-    "clip_coef": {
-        "distribution": "uniform",
-        "min": 0.05,
-        "max": 0.3,
-        "mean": 0.1,
-        "scale": "auto",
-    },
-    "vf_coef": {
-        "distribution": "log_normal",
-        "min": 0.01,
-        "max": 1.0,
-        "mean": 0.1,
-        "scale": "auto",
-    },
-    "ent_coef": {
-        "distribution": "log_normal",
-        "min": 1e-4,
-        "max": 1e-2,
-        "mean": 1e-3,
-        "scale": "auto",
-    },
-}
-
-# base args that will be mutated by the sweep.suggest call
-BASE_ARGS = {
-    "sweep": SWEEP_CFG,
-    "train": {
-        "num_envs": 10,
-        "num_steps": 200,
-        "total_timesteps": 1000000,
-    },
-    "data_path": "sweep",
-}
+DEFAULT_CONFIG = "scripts/flatland_sweep.yaml"
 
 
 def run_training_with_suggestion(suggestion_args, use_gpu=False):
     train = suggestion_args.get("train", {})
-    # map fields to CLI
     exp_name = f"puffer_{int(time.time())}"
     cmd = [
         "uv",
@@ -76,7 +34,9 @@ def run_training_with_suggestion(suggestion_args, use_gpu=False):
         "--seed",
         str(int(time.time()) & 0xFFFFFFFF),
         "--curriculum-path",
-        "curriculums/jiang_sweep_2_agents_30x30.json",
+        suggestion_args.get(
+            "curriculum_path", "curriculums/jiang_sweep_2_agents_30x30.json"
+        ),
         "--learning-rate",
         str(train.get("learning_rate", 2.5e-5)),
         "--clip-coef",
@@ -87,12 +47,11 @@ def run_training_with_suggestion(suggestion_args, use_gpu=False):
         str(train.get("ent_coef", 1e-3)),
     ]
 
-    # append GPU flag when requested
     if use_gpu:
         cmd.append("--cuda")
 
     subprocess.run(cmd, check=True)
-    # find produced run dir
+
     matches = sorted(Path("runs").glob(f"flatland-rl__{exp_name}__*"))
     if not matches:
         raise FileNotFoundError("no run dir found for exp: " + exp_name)
@@ -107,33 +66,78 @@ def run_training_with_suggestion(suggestion_args, use_gpu=False):
     return scalars[-1].value
 
 
-def main(trials=20, use_gpu=False):
-    cfg = dict(SWEEP_CFG)
-    # ensure the sweep config reflects the requested GPU usage
-    cfg["use_gpu"] = use_gpu
+def sweep_from_config(config_path, use_gpu=False):
+    with open(config_path) as f:
+        args = yaml.safe_load(f)
 
-    # Directly construct the Protein sweep using the provided config
-    sweep = Protein(cfg, expansion_rate=1.0, use_gpu=use_gpu)
+    start_time = time.time()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    obs_file = f"puffer_runs/sweep_observations_flatland_{timestamp}.pkl"
+    print(f"Sweep observations will be saved to: {obs_file}")
+
+    sweep_manager = Protein(args["sweep"], **args.get("sweep_extra", {}))
 
     Path("puffer_runs").mkdir(parents=True, exist_ok=True)
 
-    for i in range(trials):
-        args = json.loads(json.dumps(BASE_ARGS))  # deep copy
-        suggestion, info = sweep.suggest(args)
-        score = run_training_with_suggestion(suggestion, use_gpu=use_gpu)
-        cost = suggestion.get("train", {}).get("total_timesteps", 1)
-        sweep.observe(suggestion, score, cost)
+    max_runs = int(args.get("max_runs", 20))
+    suggest_history = []
+    orig_args = copy.deepcopy(args)
 
-        with open(Path("puffer_runs") / "results.jsonl", "a") as f:
-            f.write(
-                json.dumps({"suggestion": suggestion, "score": score, "cost": cost})
-                + "\n"
-            )
+    for i in range(max_runs):
+        print(f"\n--- Starting sweep run {i + 1}/{max_runs} ---")
+
+        seed = time.time_ns() & 0xFFFFFFFF
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
+        suggest_start_time = time.time()
+        run_args, info = sweep_manager.suggest(args)
+        suggest_time = time.time() - suggest_start_time
+        print(f"sweep_manager.suggest() took {suggest_time:.4f} seconds")
+        suggest_history.append(
+            {
+                "run_args": copy.deepcopy(run_args),
+                "info": info,
+                "suggest_time": suggest_time,
+                "run_index": i,
+            }
+        )
+
+        try:
+            score = run_training_with_suggestion(run_args, use_gpu=use_gpu)
+        except Exception as e:
+            print(f"Run {i + 1} failed: {e}")
+            sweep_manager.observe(run_args, 0, 0, is_failure=True)
+            continue
+
+        cost = run_args.get("train", {}).get("total_timesteps", 1)
+        sweep_manager.observe(run_args, score, cost)
+
+        if (i + 1) % 10 == 0 or (i + 1) >= max_runs:
+            print(f"\n--- Saving sweep observations to {obs_file} (run {i + 1}) ---")
+            with open(obs_file, "wb") as f:
+                pickle.dump(
+                    {
+                        "success": sweep_manager.success_observations,
+                        "failure": sweep_manager.failure_observations,
+                        "suggest_history": suggest_history,
+                        "total_sweep_time": time.time() - start_time,
+                        "args": orig_args,
+                    },
+                    f,
+                )
+
+    total_sweep_time = time.time() - start_time
+    print(f"\n--- Total sweep time: {total_sweep_time:.2f} seconds ---")
+    total_suggest_time = sum(h["suggest_time"] for h in suggest_history)
+    print(f"--- Total suggest time: {total_suggest_time:.2f} seconds ---")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--trials", type=int, default=10)
+    parser.add_argument("--config", type=str, default=DEFAULT_CONFIG)
     parser.add_argument("--use-gpu", action="store_true")
     args = parser.parse_args()
-    main(trials=args.trials, use_gpu=args.use_gpu)
+
+    sweep_from_config(args.config, use_gpu=args.use_gpu)
