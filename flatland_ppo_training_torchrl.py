@@ -164,7 +164,21 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    # Load pretrained checkpoint early (only reading) so we can reuse run_name and resume metadata
+    pretrained_checkpoint = None
+    pretrained_model_state = None
+    if args.pretrained_network_path is not None:
+        model_path = args.pretrained_network_path
+        assert model_path.endswith("tar"), "Network format not known."
+        # load on cpu to avoid device issues
+        pretrained_checkpoint = torch.load(model_path, map_location="cpu")
+        pretrained_model_state = pretrained_checkpoint.get("model_state_dict", None)
+
+    # run_name: reuse saved run_name if available so logs/checkpoints continue in same folder
+    if pretrained_checkpoint is not None and "run_name" in pretrained_checkpoint:
+        run_name = pretrained_checkpoint["run_name"]
+    else:
+        run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
     os.makedirs(f"model_checkpoints/{run_name}", exist_ok=True)
 
     if args.exp_name is not None:
@@ -236,12 +250,10 @@ if __name__ == "__main__":
 
     model = ActorValueOperator(common_module, policy, critic_module).to(device)
 
-    if args.pretrained_network_path is not None:
-        model_path = args.pretrained_network_path
-        assert model_path.endswith("tar"), "Network format not known."
-        checkpoint = torch.load(model_path)
-        model.load_state_dict(checkpoint["model_state_dict"])
-        print("loaded pretrained model from .tar file")
+    # load pretrained model weights if provided
+    if pretrained_model_state is not None:
+        model.load_state_dict(pretrained_model_state)
+        print("loaded pretrained model weights from .tar file")
 
     # Set-Up loss module
 
@@ -269,12 +281,28 @@ if __name__ == "__main__":
         loss_module.parameters(), lr=args.learning_rate, weight_decay=1e-7
     )
 
+    # if pretrained checkpoint had optimizer state, load it now
+    if pretrained_checkpoint is not None and "optimizer_state_dict" in pretrained_checkpoint:
+        try:
+            optim.load_state_dict(pretrained_checkpoint["optimizer_state_dict"])
+            print("loaded optimizer state from checkpoint")
+        except Exception as e:
+            print(f"could not load optimizer state: {e}")
+
     if args.zero_tree_attributes:
         print("freeze trees")
         for param in common_module.tree_lstm.parameters():
             param.data = torch.zeros_like(param.data)
             param.requires_grad = False  # freeze
-    global_step = 0
+    # Initialize or restore global step and curriculum position
+    if pretrained_checkpoint is not None:
+        global_step = int(pretrained_checkpoint.get("global_step", 0))
+        start_curriculum_idx = int(pretrained_checkpoint.get("curriculum_idx", 0))
+        curriculum_progress_absolute = int(pretrained_checkpoint.get("curriculum_progress", 0))
+    else:
+        global_step = 0
+        start_curriculum_idx = 0
+        curriculum_progress_absolute = 0
 
     for param in common_module.tree_lstm.parameters():
         print(param.requires_grad)
@@ -320,7 +348,8 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # Start PPO loop
-    for curriculum_idx, curriculum in enumerate(curriculums):
+    # iterate starting from saved curriculum index if resuming
+    for curriculum_idx, curriculum in enumerate(curriculums[start_curriculum_idx:], start=start_curriculum_idx):
         print(f"Current curriculum settings: {curriculum}")
         args.batch_size = int(
             args.num_envs * curriculum["num_steps"]
@@ -328,6 +357,24 @@ if __name__ == "__main__":
         args.minibatch_size = int(args.batch_size // args.num_minibatches)
         print(f"minibatch size: {args.minibatch_size}")
         print(f"batch size: {args.batch_size}")
+
+        # adjust remaining timesteps if resuming inside this curriculum
+        # curriculum_progress_absolute stores absolute timesteps already done in this curriculum
+        if curriculum_idx == start_curriculum_idx and curriculum_progress_absolute > 0:
+            original_total = curriculum.get("total_timesteps", 0)
+            remaining = max(0, original_total - curriculum_progress_absolute)
+            if remaining == 0:
+                print(f"Curriculum {curriculum_idx} already completed ({curriculum_progress_absolute} >= {original_total}), skipping")
+                # reset absolute progress for next curriculum
+                curriculum_progress_absolute = 0
+                continue
+            print(f"Resuming curriculum {curriculum_idx}: skipping first {curriculum_progress_absolute} timesteps, remaining {remaining}")
+            # set curriculum's total_timesteps to remaining for the collector
+            curriculum["total_timesteps"] = remaining
+            # start counting from what we already had
+            curriculum_progress_in_run = curriculum_progress_absolute
+        else:
+            curriculum_progress_in_run = 0
 
         if args.map_name is None:
 
@@ -419,6 +466,7 @@ if __name__ == "__main__":
 
         start_rollout = time.time()
 
+        # save a boundary checkpoint at the start of each curriculum (include metadata)
         if args.exp_name is not None:
             boundary_name = (
                 f"{run_name}_curr{curriculum_idx + 1}_"
@@ -428,6 +476,10 @@ if __name__ == "__main__":
                 {
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optim.state_dict(),
+                    "global_step": global_step,
+                    "curriculum_idx": curriculum_idx,
+                    "curriculum_progress": curriculum_progress_absolute,
+                    "run_name": run_name,
                 },
                 f"model_checkpoints/{run_name}/{boundary_name}.tar",
             )
@@ -440,6 +492,8 @@ if __name__ == "__main__":
             training_start = time.time()
 
             global_step += args.batch_size
+            curriculum_progress_in_run += args.batch_size
+            curriculum_progress_absolute = curriculum_progress_in_run
 
             assert tensordict_data[("next", "agents", "reward")].shape == torch.Size(
                 [args.num_envs, curriculum["num_steps"], curriculum["num_agents"]]
@@ -558,7 +612,7 @@ if __name__ == "__main__":
                 )  # only one advantage per environment and step
 
                 # get value of final observations
-                next_val = model.get_value_operator()(
+                next_val = model.get_value_operator()( 
                     tensordict_data[("next")][:, curriculum["num_steps"] - 1]
                 )
 
@@ -642,7 +696,7 @@ if __name__ == "__main__":
                             ].clone()
                             original_actions = subdata[("agents", "action")].clone()
                             with torch.no_grad():
-                                updated_logits = model(subdata.clone())[
+                                updated_logits = model(subdata.clone())[ 
                                     ("agents", "logits")
                                 ]
                                 dist = torch.distributions.Categorical(
@@ -732,11 +786,16 @@ if __name__ == "__main__":
                 )
                 writer.add_scalar("losses/clipfrac_max", clip_frac.max(), global_step)
 
+                # periodic checkpoint: include optimizer + resume metadata
                 if (global_step / args.batch_size) % 10 == 0:
                     torch.save(
                         {
                             "model_state_dict": model.state_dict(),
                             "optimizer_state_dict": optim.state_dict(),
+                            "global_step": global_step,
+                            "curriculum_idx": curriculum_idx,
+                            "curriculum_progress": curriculum_progress_absolute,
+                            "run_name": run_name,
                         },
                         f"model_checkpoints/{run_name}/{run_name}_"
                         + str(global_step)
@@ -744,3 +803,5 @@ if __name__ == "__main__":
                     )
 
             start_rollout = time.time()
+
+    # end of training loop

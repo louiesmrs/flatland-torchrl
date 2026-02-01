@@ -11,8 +11,10 @@ from tensorboard.backend.event_processing import event_accumulator
 SWEEP_CFG = {
     "method": "Protein",
     "metric": "stats/arrival_ratio",
+    "metric_distribution": "raw",
     "goal": "maximize",
     "downsample": 1,
+    "early_stop_quantile": 0.3,
     # Hyperparams to sweep are declared as nested dicts in the pufferlib format
     "learning_rate": {
         "distribution": "log_normal",
@@ -44,7 +46,7 @@ BASE_ARGS = {
 }
 
 
-def run_training_with_suggestion(suggestion_args):
+def run_training_with_suggestion(suggestion_args, use_gpu=False):
     train = suggestion_args.get("train", {})
     # map fields to CLI
     exp_name = f"puffer_{int(time.time())}"
@@ -72,6 +74,11 @@ def run_training_with_suggestion(suggestion_args):
         "--ent-coef",
         str(train.get("ent_coef", 1e-3)),
     ]
+
+    # append GPU flag when requested
+    if use_gpu:
+        cmd.append("--cuda")
+
     subprocess.run(cmd, check=True)
     # find produced run dir
     matches = sorted(Path("runs").glob(f"flatland-rl__{exp_name}__*"))
@@ -90,16 +97,18 @@ def run_training_with_suggestion(suggestion_args):
 
 def main(trials=10, use_gpu=False):
     cfg = dict(SWEEP_CFG)
+    # ensure the sweep config reflects the requested GPU usage
+    cfg["use_gpu"] = use_gpu
 
     # Directly construct the Protein sweep using the provided config
-    sweep = Protein(cfg, expansion_rate=1.0)
+    sweep = Protein(cfg, expansion_rate=1.0, use_gpu=use_gpu)
 
     Path("puffer_runs").mkdir(parents=True, exist_ok=True)
 
     for i in range(trials):
         args = json.loads(json.dumps(BASE_ARGS))  # deep copy
         suggestion, info = sweep.suggest(args)
-        score = run_training_with_suggestion(suggestion)
+        score = run_training_with_suggestion(suggestion, use_gpu=use_gpu)
         cost = suggestion.get("train", {}).get("total_timesteps", 1)
         sweep.observe(suggestion, score, cost)
 

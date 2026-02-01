@@ -184,4 +184,6 @@ trained_models/
 cleanrl_hpopt.db
 
 videos/
-resouces/
+resources/
+puffer_runs/
+

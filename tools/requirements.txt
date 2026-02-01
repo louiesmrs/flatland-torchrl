@@ -2,7 +2,7 @@
 # Install with: uv pip install -r tools/requirements.txt
 
 # PufferLib for hyperparameter sweeps
-pufferlib
+git+https://github.com/PufferAI/PufferLib.git@3.0
 
 # Logging/experiment tracking
 wandb
