@@ -282,7 +282,10 @@ if __name__ == "__main__":
     )
 
     # if pretrained checkpoint had optimizer state, load it now
-    if pretrained_checkpoint is not None and "optimizer_state_dict" in pretrained_checkpoint:
+    if (
+        pretrained_checkpoint is not None
+        and "optimizer_state_dict" in pretrained_checkpoint
+    ):
         try:
             optim.load_state_dict(pretrained_checkpoint["optimizer_state_dict"])
             print("loaded optimizer state from checkpoint")
@@ -298,7 +301,9 @@ if __name__ == "__main__":
     if pretrained_checkpoint is not None:
         global_step = int(pretrained_checkpoint.get("global_step", 0))
         start_curriculum_idx = int(pretrained_checkpoint.get("curriculum_idx", 0))
-        curriculum_progress_absolute = int(pretrained_checkpoint.get("curriculum_progress", 0))
+        curriculum_progress_absolute = int(
+            pretrained_checkpoint.get("curriculum_progress", 0)
+        )
     else:
         global_step = 0
         start_curriculum_idx = 0
@@ -309,22 +314,22 @@ if __name__ == "__main__":
 
     print("\n \n Number of Parameters:\n")
     print(
-        f'{"attr embedding:":<15} {sum(p.numel() for p in common_module.attr_embedding.parameters() if p.requires_grad):>10,}'
+        f"{'attr embedding:':<15} {sum(p.numel() for p in common_module.attr_embedding.parameters() if p.requires_grad):>10,}"
     )
     print(
-        f'{"tree embedding:":<15} {sum(p.numel() for p in common_module.tree_lstm.parameters() if p.requires_grad):>10,}'
+        f"{'tree embedding:':<15} {sum(p.numel() for p in common_module.tree_lstm.parameters() if p.requires_grad):>10,}"
     )
     print(
-        f'{"transformer:":<15} {sum(p.numel() for p in common_module.transformer.parameters() if p.requires_grad):>10,}'
+        f"{'transformer:':<15} {sum(p.numel() for p in common_module.transformer.parameters() if p.requires_grad):>10,}"
     )
     print(
-        f'{"policy net:":<15} {sum(p.numel() for p in model.get_policy_head().parameters() if p.requires_grad):>10,}'
+        f"{'policy net:':<15} {sum(p.numel() for p in model.get_policy_head().parameters() if p.requires_grad):>10,}"
     )
     print(
-        f'{"value net:":<15} {sum(p.numel() for p in model.get_value_head().parameters() if p.requires_grad):>10,}'
+        f"{'value net:':<15} {sum(p.numel() for p in model.get_value_head().parameters() if p.requires_grad):>10,}"
     )
     print(
-        f'{"total:":<15} {sum(p.numel() for p in model.parameters() if p.requires_grad):>10,}'
+        f"{'total:':<15} {sum(p.numel() for p in model.parameters() if p.requires_grad):>10,}"
     )
 
     print("\n \n")
@@ -349,7 +354,9 @@ if __name__ == "__main__":
 
     # Start PPO loop
     # iterate starting from saved curriculum index if resuming
-    for curriculum_idx, curriculum in enumerate(curriculums[start_curriculum_idx:], start=start_curriculum_idx):
+    for curriculum_idx, curriculum in enumerate(
+        curriculums[start_curriculum_idx:], start=start_curriculum_idx
+    ):
         print(f"Current curriculum settings: {curriculum}")
         args.batch_size = int(
             args.num_envs * curriculum["num_steps"]
@@ -364,11 +371,15 @@ if __name__ == "__main__":
             original_total = curriculum.get("total_timesteps", 0)
             remaining = max(0, original_total - curriculum_progress_absolute)
             if remaining == 0:
-                print(f"Curriculum {curriculum_idx} already completed ({curriculum_progress_absolute} >= {original_total}), skipping")
+                print(
+                    f"Curriculum {curriculum_idx} already completed ({curriculum_progress_absolute} >= {original_total}), skipping"
+                )
                 # reset absolute progress for next curriculum
                 curriculum_progress_absolute = 0
                 continue
-            print(f"Resuming curriculum {curriculum_idx}: skipping first {curriculum_progress_absolute} timesteps, remaining {remaining}")
+            print(
+                f"Resuming curriculum {curriculum_idx}: skipping first {curriculum_progress_absolute} timesteps, remaining {remaining}"
+            )
             # set curriculum's total_timesteps to remaining for the collector
             curriculum["total_timesteps"] = remaining
             # start counting from what we already had
@@ -469,8 +480,7 @@ if __name__ == "__main__":
         # save a boundary checkpoint at the start of each curriculum (include metadata)
         if args.exp_name is not None:
             boundary_name = (
-                f"{run_name}_curr{curriculum_idx + 1}_"
-                f"agents{curriculum['num_agents']}"
+                f"{run_name}_curr{curriculum_idx + 1}_agents{curriculum['num_agents']}"
             )
             torch.save(
                 {
@@ -607,12 +617,10 @@ if __name__ == "__main__":
                 lastgaelam = torch.zeros(args.num_envs).to(device)
                 tensordict_data["advantage"] = torch.zeros_like(
                     tensordict_data["state_value"]
-                ).to(
-                    device
-                )  # only one advantage per environment and step
+                ).to(device)  # only one advantage per environment and step
 
                 # get value of final observations
-                next_val = model.get_value_operator()( 
+                next_val = model.get_value_operator()(
                     tensordict_data[("next")][:, curriculum["num_steps"] - 1]
                 )
 
@@ -696,7 +704,7 @@ if __name__ == "__main__":
                             ].clone()
                             original_actions = subdata[("agents", "action")].clone()
                             with torch.no_grad():
-                                updated_logits = model(subdata.clone())[ 
+                                updated_logits = model(subdata.clone())[
                                     ("agents", "logits")
                                 ]
                                 dist = torch.distributions.Categorical(

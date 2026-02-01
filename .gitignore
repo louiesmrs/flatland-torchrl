@@ -186,4 +186,4 @@ cleanrl_hpopt.db
 videos/
 resources/
 puffer_runs/
-
+.pre-commit-config.yaml

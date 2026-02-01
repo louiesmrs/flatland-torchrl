@@ -1,12 +1,130 @@
-WandB setup for CARBS
+# Background
 
-CARBS uses wandb for sweep orchestration in some examples. To enable wandb logging when running the CARBS sweep in GitHub Actions:
+The code in this repo was developed as part of career starter data science project at SBB Cargo, with the aim of gaining a general understanding of reinforcement learning by engineering the training script for the paper "Multi-Agent Path Finding via Tree LSTM". Its main contributions are:
 
-1) Create a WandB account and get an API key at https://wandb.ai/authorize
-2) In your GitHub repo Settings → Secrets → Actions, add a secret named `WANDB_API_KEY` with the key value.
+* working training scripts for a TreeLSTM in flatland
+* adaption of the flatland environment for TorchRL, making training scripts easier to write
+* working prototype using tree-based transformers as introduced in this (https://www.microsoft.com/en-us/research/publication/novel-positional-encodings-to-enable-tree-based-transformers/) paper to process flatland observations
 
-The CARBS workflow will pass the secret into the runner as `WANDB_API_KEY` when installing/using dev tools. Locally you can set:
+# Sources and Credit
 
-export WANDB_API_KEY=<your-key>
+Several people in SBB and the Flatland community gave valuable input to this project, notably my supervisor Philipp Germann, Adrian Egli and Matthias Minder from SBB and Jeremy Watson from Flatland. (Any bugs or errors are of course entirely mine (Emanuel Zwyssig)).
 
-or run uv with the environment variable set.
+The C-Utils observation generator and the LSTM network implementation stems from https://github.com/RoboEden/flatland-marl, which this is a fork of.
+
+# Installation (uv)
+
+```shell
+git submodule update --init --recursive
+
+uv venv .venv
+source .venv/bin/activate
+uv sync --reinstall
+
+# Install BenchMARL submodule
+uv pip install ./benchmarl_ext
+
+# Build C-utils
+uv pip install ./flatland_cutils
+```
+
+
+
+> Note: On macOS, `flatland_cutils` requires Apple clang. The repo’s `flatland_cutils/setup.py` is configured to use it automatically.
+
+# Training
+
+To train flatland, run `flatland_ppo_training_torchrl.py`. There are many ready-to-use run commands for different experiments in the `/run_commands` folder. There are many hyperparameters to choose from, most of which are standard for the algorithm used. Below are brief explanations of the most special cases.
+
+On macOS, the script will use **MPS** automatically if available and will fall back to CPU for unsupported ops. You can also set this explicitly before running:
+
+```shell
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+```
+
+Example (uv):
+
+```shell
+uv run python flatland_ppo_training_torchrl.py \
+  --exp-name demo \
+  --num-agents 10 \
+  --num-envs 8 \
+  --total-timesteps 100000
+```
+
+## TensorBoard
+
+Training runs log to `runs/` by default. Start TensorBoard with:
+
+```shell
+uv run tensorboard --logdir runs
+```
+
+Then open http://localhost:6006 in your browser.
+
+## Reward Structures
+
+In order to try different rewards and reproduce the curriculum learning used in the original paper, rewards are calculated as a linear combination of different components, the weight of each determined by a coefficient. Furthermore, rewards are determined in a curriculum-json file. For examples, see the /curriculums folder. 
+
+| Name                  | Definition                                                                                                                                                                                                                                              | Equivalent in Flatland TreeLSTM paper |
+|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| departure_reward      | Gives the defined reward once if the agent switches from off-map state to on-map state                                                                                                                                                                  | Departure reward                      |
+| arrival_reward        | Gives the defined reward once if the agent arrives at its destination on time.                                                                                                                                                                          | arrival reward                        |
+| delay_reward          | Once the train is allowed to depart, at each step give the minimal delay (if the agent were to follow the shortest path) it would have at the destination.                                                                                              | Environmental Reward                  |
+| shortest_path_reward  | Once the train is allowed to depart, at each step give the difference between travel time on the shortest path and available  time (positive if the train would arrive early on the shortest path, and equal to delay reward if it were to arrive late) | none                                  |
+| deadlock_penalty      | Gives the defined value as negative penalty for each agent newly in a deadlock.                                                                                                                                                                         | deadlock penalty                      |
+| arrival_delay_penalty | Equal in value to the delay reward, but only returned once upon the agents arrival at the destination or end of episode.                                                                                                                                | none                                  |
+
+
+Note that penalties are defined as negative rewards, i.e. a deadlock penalty of 2.5 will result in a reward of -2.5 upon deadlock. 
+
+## Hyperparameter Training
+
+The repo contains a script for hyperparameter optimization under /hyperparameter_searches.
+
+# Flatland in TorchRL
+
+The adaptions necessary for flatland to be used as a TorchRL environment are contained in the folder /flatland_torchrl and can be used as a stand-alone component.
+
+# Model Comparisons
+
+To compare different models to the pre-trained model from the original paper, the script `torchrl_rollout_demo.py` allows using both model architectures for a rollout (including the possibility to render the rollouts).
+
+Example (uv):
+
+```shell
+uv run python torchrl_rollout_demo.py \
+  --pretrained-network-path trained_model_checkpoints/flatland-rl__ten_agents_lstm_l2_paper_reward__2__1706822019_25008000.tar
+```
+
+# Hyperparameter tuning (CARBS)
+
+We use [CARBS](https://github.com/imbue-ai/carbs) for tuning. The sweep wrapper runs training and reads the chosen TensorBoard scalar.
+
+```shell
+uv run python scripts/carbs_sweep.py \
+  --trials 10 \
+  --seed 1 \
+  --metric "stats/arrival_ratio" \
+  --curriculum-path "curriculums/jiang_phases_1_3_7_to_10_agents_30x30.json"
+```
+
+Or via run command:
+
+```shell
+bash run_commands/carbs_sweep_flatland.sh
+```
+
+Results are appended to `carbs_runs/results.jsonl`.
+
+# Notes
+
+A couple of my notes are in notes.pdf. These are just my personal working notes, and I include them in case they might be useful to someone, whitout claim to completeness or correctness.
+
+# Future of this Repo/Expectations
+
+As this repo was developed during a limited-time project, it will not be maintained or further developed, and questions will be answered sporadically at best.
+
+# License
+
+Code released under the MIT license.
