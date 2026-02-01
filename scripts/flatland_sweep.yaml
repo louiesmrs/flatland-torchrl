@@ -1,8 +1,4 @@
-wandb: true
-wandb_project: flatland
-wandb_group: flatland-sweep
 max_runs: 20
-no_model_upload: true
 
 sweep:
   method: Protein

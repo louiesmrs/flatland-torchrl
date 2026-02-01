@@ -17,7 +17,71 @@ from tensorboard.backend.event_processing import event_accumulator
 DEFAULT_CONFIG = "scripts/flatland_sweep.yaml"
 
 
+def _load_tensorboard_scalar(run_dir: Path, tag: str) -> float:
+    ea = event_accumulator.EventAccumulator(str(run_dir))
+    ea.Reload()
+    if tag not in ea.Tags().get("scalars", []):
+        raise KeyError(f"Tag '{tag}' not found in TensorBoard logs for {run_dir}")
+    scalars = ea.Scalars(tag)
+    return scalars[-1].value
+
+
+def _flatten_overrides(overrides, prefix=""):
+    items = {}
+    for key, value in overrides.items():
+        full_key = f"{prefix}{key}" if not prefix else f"{prefix}.{key}"
+        if isinstance(value, dict):
+            items.update(_flatten_overrides(value, full_key))
+        else:
+            items[full_key] = value
+    return items
+
+
+def run_benchmarl_with_suggestion(benchmarl_cfg, use_gpu=False):
+    train_device = "cuda" if use_gpu else benchmarl_cfg.get("train_device", "cpu")
+    sampling_device = "cuda" if use_gpu else benchmarl_cfg.get("sampling_device", "cpu")
+
+    loggers = ",".join(benchmarl_cfg.get("loggers", ["tensorboard"]))
+    cmd = [
+        "uv",
+        "run",
+        "python",
+        "benchmarl_ext/benchmarl/run.py",
+        f"task={benchmarl_cfg.get('task', 'flatland/phase_1')}",
+        f"algorithm={benchmarl_cfg.get('algorithm', 'ippo')}",
+        f"model={benchmarl_cfg.get('model', 'layers/flatland_treelstm')}",
+        f"model@critic_model={benchmarl_cfg.get('critic_model', 'layers/flatland_treelstm_critic')}",
+        f"experiment.train_device={train_device}",
+        f"experiment.sampling_device={sampling_device}",
+        f"experiment.checkpoint_interval={benchmarl_cfg.get('checkpoint_interval', 120000)}",
+        f"experiment.checkpoint_at_end={str(benchmarl_cfg.get('checkpoint_at_end', True)).lower()}",
+        f"experiment.loggers=[{loggers}]",
+        f"experiment.create_json={str(benchmarl_cfg.get('create_json', False)).lower()}",
+        "experiment.project_name=flatland",
+        f"seed={benchmarl_cfg.get('seed', 0)}",
+    ]
+
+    overrides = _flatten_overrides(benchmarl_cfg.get("overrides", {}))
+    for key, value in overrides.items():
+        cmd.append(f"{key}={value}")
+
+    subprocess.run(cmd, check=True)
+
+    output_root = Path(".").resolve()
+    experiments = sorted(output_root.rglob("ippo_*"))
+    experiments = [p for p in experiments if p.is_dir()]
+    if not experiments:
+        raise FileNotFoundError("No BenchMARL output folder found after run.")
+    run_dir = max(experiments, key=lambda p: p.stat().st_mtime)
+
+    return _load_tensorboard_scalar(run_dir, tag="collection_info_arrival_ratio_mean")
+
+
 def run_training_with_suggestion(suggestion_args, use_gpu=False):
+    benchmarl_cfg = suggestion_args.get("benchmarl")
+    if benchmarl_cfg:
+        return run_benchmarl_with_suggestion(benchmarl_cfg, use_gpu=use_gpu)
+
     train = suggestion_args.get("train", {})
     exp_name = f"puffer_{int(time.time())}"
     cmd = [
@@ -57,13 +121,7 @@ def run_training_with_suggestion(suggestion_args, use_gpu=False):
         raise FileNotFoundError("no run dir found for exp: " + exp_name)
     run_dir = matches[-1]
 
-    ea = event_accumulator.EventAccumulator(str(run_dir))
-    ea.Reload()
-    tag = "stats/arrival_ratio"
-    if tag not in ea.Tags().get("scalars", []):
-        raise KeyError(f"Tag '{tag}' not found in TensorBoard logs for {run_dir}")
-    scalars = ea.Scalars(tag)
-    return scalars[-1].value
+    return _load_tensorboard_scalar(run_dir, tag="stats/arrival_ratio")
 
 
 def sweep_from_config(config_path, use_gpu=False):
@@ -75,7 +133,8 @@ def sweep_from_config(config_path, use_gpu=False):
     obs_file = f"puffer_runs/sweep_observations_flatland_{timestamp}.pkl"
     print(f"Sweep observations will be saved to: {obs_file}")
 
-    sweep_manager = Protein(args["sweep"], **args.get("sweep_extra", {}))
+    sweep_cfg = copy.deepcopy(args["sweep"])
+    sweep_manager = Protein(sweep_cfg, **args.get("sweep_extra", {}))
 
     Path("puffer_runs").mkdir(parents=True, exist_ok=True)
 

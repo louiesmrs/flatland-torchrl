@@ -1,0 +1,57 @@
+max_runs: 20
+
+sweep:
+  method: Protein
+  metric: collection_info_arrival_ratio_mean
+  metric_distribution: raw
+  goal: maximize
+  downsample: 1
+  early_stop_quantile: 0.3
+  benchmarl_overrides:
+    experiment:
+      lr:
+        distribution: log_normal
+        min: 2.5e-6
+        max: 2.5e-3
+        mean: 2.5e-5
+        scale: auto
+    algorithm:
+      clip_epsilon:
+        distribution: uniform
+        min: 0.05
+        max: 0.3
+        mean: 0.1
+        scale: auto
+      critic_coef:
+        distribution: log_normal
+        min: 0.01
+        max: 1.0
+        mean: 0.1
+        scale: auto
+      entropy_coef:
+        distribution: log_normal
+        min: 1e-4
+        max: 1e-2
+        mean: 1e-3
+        scale: auto
+
+sweep_extra:
+  expansion_rate: 1.0
+  use_gpu: false
+
+benchmarl:
+  task: flatland/phase_1
+  algorithm: ippo
+  model: layers/flatland_treelstm
+  critic_model: layers/flatland_treelstm_critic
+  train_device: cpu
+  sampling_device: cpu
+  checkpoint_interval: 120000
+  checkpoint_at_end: true
+  loggers: [tensorboard]
+  create_json: false
+  overrides:
+    experiment.lr: ${sweep.benchmarl_overrides.experiment.lr}
+    algorithm.clip_epsilon: ${sweep.benchmarl_overrides.algorithm.clip_epsilon}
+    algorithm.critic_coef: ${sweep.benchmarl_overrides.algorithm.critic_coef}
+    algorithm.entropy_coef: ${sweep.benchmarl_overrides.algorithm.entropy_coef}
