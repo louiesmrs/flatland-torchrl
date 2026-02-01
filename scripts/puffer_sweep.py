@@ -52,7 +52,7 @@ BASE_ARGS = {
     "train": {
         "num_envs": 10,
         "num_steps": 200,
-        "total_timesteps": 100000,
+        "total_timesteps": 1000000,
     },
     "data_path": "sweep",
 }
@@ -107,7 +107,7 @@ def run_training_with_suggestion(suggestion_args, use_gpu=False):
     return scalars[-1].value
 
 
-def main(trials=10, use_gpu=False):
+def main(trials=20, use_gpu=False):
     cfg = dict(SWEEP_CFG)
     # ensure the sweep config reflects the requested GPU usage
     cfg["use_gpu"] = use_gpu
