@@ -134,7 +134,42 @@ def sweep_from_config(config_path, use_gpu=False):
     print(f"Sweep observations will be saved to: {obs_file}")
 
     sweep_cfg = copy.deepcopy(args["sweep"])
-    sweep_manager = Protein(sweep_cfg, **args.get("sweep_extra", {}))
+
+    # Coerce numeric-like strings to numbers and boolean-like strings to bools so
+    # pufferlib receives real numbers instead of strings (which causes math.log
+    # TypeError). Leave special strings like 'auto' untouched.
+    def _coerce_scalar(s):
+        if not isinstance(s, str):
+            return s
+        low = s.lower()
+        if low == "auto":
+            return s
+        if low == "true":
+            return True
+        if low == "false":
+            return False
+        try:
+            f = float(s)
+        except Exception:
+            return s
+        # convert to int when appropriate
+        if f.is_integer():
+            return int(f)
+        return f
+
+    def _coerce(obj):
+        if isinstance(obj, dict):
+            return {k: _coerce(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_coerce(v) for v in obj]
+        if isinstance(obj, str):
+            return _coerce_scalar(obj)
+        return obj
+
+    sweep_cfg = _coerce(sweep_cfg)
+    sweep_extra = _coerce(args.get("sweep_extra", {}))
+
+    sweep_manager = Protein(sweep_cfg, **sweep_extra)
 
     Path("puffer_runs").mkdir(parents=True, exist_ok=True)
 
