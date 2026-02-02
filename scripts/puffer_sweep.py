@@ -91,15 +91,13 @@ def run_training_with_suggestion(suggestion_args, use_gpu=False):
         "flatland_ppo_training_torchrl.py",
         "--exp-name",
         exp_name,
-        "--num-envs",
-        str(int(train.get("num_envs", 10))),
         "--num-steps",
-        str(int(train.get("num_steps", 200))),
+        str(int(train.get("num_steps", 1000))),
         "--seed",
         str(int(time.time()) & 0xFFFFFFFF),
         "--curriculum-path",
         suggestion_args.get(
-            "curriculum_path", "curriculums/jiang_sweep_2_agents_30x30.json"
+            "curriculum_path", "curriculums/1_1_two_agents_no_deadlocks.json"
         ),
         "--learning-rate",
         str(train.get("learning_rate", 2.5e-5)),

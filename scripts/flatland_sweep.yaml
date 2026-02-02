@@ -1,4 +1,4 @@
-max_runs: 50
+max_runs: 25
 
 sweep:
   method: Protein
@@ -37,8 +37,8 @@ sweep_extra:
   use_gpu: false
 
 train:
-  num_envs: 10
-  num_steps: 200
-  total_timesteps: 1000000
+  num_envs: 8
+  num_steps: 1000
+  total_timesteps: 10000000
 
-curriculum_path: curriculums/jiang_sweep_2_agents_30x30.json
+curriculum_path: curriculums/1_1_two_agents_no_deadlocks.json
