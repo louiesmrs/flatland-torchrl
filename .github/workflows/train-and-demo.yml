@@ -32,9 +32,6 @@ jobs:
       - name: Install BenchMARL
         run: uv pip install ./benchmarl_ext
 
-      - name: Build flatland_cutils
-        run: uv pip install ./flatland_cutils
-
       - name: Train (Jiang Phases I-III, 7->10 agents)
         run: |
           bash run_commands/jiang_phase_1_3.sh | tee training_output.txt

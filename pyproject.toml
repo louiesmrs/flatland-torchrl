@@ -33,6 +33,7 @@ dependencies = [
   "torchrl==0.11.0",
   "numpy<2",
   "setuptools>=69.0.0,<70",
+  "flatland_cutils @ git+https://github.com/louiesmrs/flatland_cutils.git@refs/heads/main",
 ]
 
 [build-system]
