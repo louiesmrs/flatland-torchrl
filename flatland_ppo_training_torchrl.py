@@ -19,7 +19,10 @@ from tensordict.nn import (
 )
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
-from torchrl.collectors import Collector, MultiCollector
+from torchrl.collectors import (
+    MultiaSyncDataCollector,
+    SyncDataCollector,
+)
 from torchrl.data import TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.replay_buffers.storages import LazyTensorStorage
@@ -446,27 +449,27 @@ if __name__ == "__main__":
             def make_serial_env():
                 return ParallelEnv(args.num_envs, make_env)
 
-            collector = MultiCollector(
-                create_env_fn=[make_serial_env, make_serial_env, make_serial_env],
-                policy=model,
-                frames_per_batch=args.batch_size,
-                total_frames=curriculum["total_timesteps"],
+            collector = MultiaSyncDataCollector(
+                [make_serial_env, make_serial_env, make_serial_env],
+                model,
                 device=["cpu", "cpu", "cpu"],  # env runs on cpu
                 storing_device=[device, device, device],
-                sync=False,
+                frames_per_batch=args.batch_size,
+                total_frames=curriculum["total_timesteps"],
+                update_at_each_batch=True,
                 max_frames_per_traj=-1,
                 init_random_frames=args.batch_size,
             )
         else:
             env = ParallelEnv(args.num_envs, make_env)
 
-            collector = Collector(
+            collector = SyncDataCollector(
                 env,
-                policy=model,
-                frames_per_batch=args.batch_size,
-                total_frames=curriculum["total_timesteps"],
+                model,
                 device="cpu",  # env runs on cpu
                 storing_device=device,
+                frames_per_batch=args.batch_size,
+                total_frames=curriculum["total_timesteps"],
             )
 
         replay_buffer = TensorDictReplayBuffer(
@@ -476,6 +479,8 @@ if __name__ == "__main__":
         )
 
         start_rollout = time.time()
+
+        collector.update_policy_weights_()
 
         # save a boundary checkpoint at the start of each curriculum (include metadata)
         if args.exp_name is not None:
@@ -732,6 +737,8 @@ if __name__ == "__main__":
                     optim.zero_grad()
 
             training_duration = time.time() - training_start
+
+            collector.update_policy_weights_()
 
             if args.exp_name is not None:
                 loss_vals = loss_module(subdata)
