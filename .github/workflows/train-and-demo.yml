@@ -32,14 +32,14 @@ jobs:
       - name: Install BenchMARL
         run: uv pip install ./benchmarl_ext
 
-      - name: Train (Jiang Phases I-III, 7->10 agents)
+      - name: Train 
         run: |
           bash run_commands/jiang_phase_1_3.sh | tee training_output.txt
 
       - name: Find Phase III checkpoint
         id: find_checkpoint
         run: |
-          CKPT=$(ls -t model_checkpoints/flatland-rl__jiang_phase_1_3_7_to_10_agents__1__*/flatland-rl__jiang_phase_1_3_7_to_10_agents__1__*.tar | head -n 1)
+          CKPT=$(ls -t model_checkpoints/flatland-rl*/flatland-rl*.tar | head -n 1)
           echo "checkpoint=${CKPT}" >> $GITHUB_OUTPUT
 
       - name: Demo (10 agents)
@@ -61,7 +61,7 @@ jobs:
       - name: Find TensorBoard run (Phase III)
         id: find_run
         run: |
-          RUN_DIR=$(ls -d runs/flatland-rl__jiang_phase_1_3_7_to_10_agents__1__* | sort | tail -n 1)
+          RUN_DIR=$(ls -d runs/flatland-rl* | sort | tail -n 1)
           echo "run_dir=${RUN_DIR}" >> $GITHUB_OUTPUT
 
       - name: Upload TensorBoard logs
